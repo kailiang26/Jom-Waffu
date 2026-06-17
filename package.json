@@ -1,7 +1,7 @@
 {
   "name": "jom-waffu-ledger",
-  "version": "1.0.0",
-  "description": "Jom Waffu Bookkeeping MVP App",
+  "version": "2.0.0",
+  "description": "Jom Waffu Bookkeeping Supabase Connected App",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

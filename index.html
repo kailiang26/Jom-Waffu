@@ -5,21 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jom Waffu 极简记账本</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans p-4 md:p-8 max-w-4xl mx-auto">
 
-    <!-- 顶部：实时时间与标题 -->
     <header class="flex justify-between items-end mb-6 border-b border-gray-300 pb-4">
         <div>
             <h1 class="text-2xl font-black text-indigo-600">Jom Waffu 账本系统</h1>
             <p id="real-time" class="text-sm text-gray-500 font-medium mt-1">加载时间中...</p>
         </div>
-        <button onclick="clearData()" class="text-xs text-red-400 hover:text-red-600 underline">清空全部数据</button>
+        <div class="flex gap-4 items-center">
+            <span id="sync-status" class="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded">正在连接云端...</span>
+            <button onclick="clearData()" class="text-xs text-red-400 hover:text-red-600 underline">清空云端数据</button>
+        </div>
     </header>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        <!-- 左侧：记账输入区 -->
         <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
             <h2 class="text-lg font-bold mb-4">✍️ 记一笔</h2>
             
@@ -45,18 +46,15 @@
                     <input type="text" id="input-desc" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="例如：买面粉 / 卖出 Waffle">
                 </div>
 
-                <button onclick="addRecord()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl active:scale-95 transition-all shadow-md mt-2">
+                <button id="btn-submit" onclick="addRecord()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl active:scale-95 transition-all shadow-md mt-2 disabled:opacity-50">
                     确认记录
                 </button>
             </div>
         </section>
 
-        <!-- 右侧：数据看板与导出 -->
         <section class="space-y-6">
-            
-            <!-- 数据看板 -->
             <div class="bg-gray-800 text-white p-6 rounded-2xl shadow-lg">
-                <h2 class="text-sm text-gray-400 font-medium mb-4">📊 财务看板</h2>
+                <h2 class="text-sm text-gray-400 font-medium mb-4">📊 财务看板 (云端实时)</h2>
                 <div class="grid grid-cols-2 gap-4 mb-6">
                     <div class="bg-gray-700 p-3 rounded-lg border-l-4 border-emerald-400">
                         <span class="text-xs text-gray-300 block mb-1">今日收入</span>
@@ -79,10 +77,8 @@
                 </div>
             </div>
 
-            <!-- WhatsApp 导出功能 -->
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                 <h2 class="text-sm font-bold text-gray-700 mb-3">🟢 WhatsApp 发送报表</h2>
-                
                 <div class="flex gap-3 mb-4">
                     <button onclick="exportToWhatsApp('today')" class="flex-1 bg-green-50 hover:bg-green-100 text-green-700 font-bold py-2 rounded-lg text-sm border border-green-200 transition-all">
                         发送今日
@@ -91,7 +87,6 @@
                         发送本月
                     </button>
                 </div>
-
                 <div class="border-t border-gray-100 pt-4">
                     <label class="text-xs text-gray-500 block mb-2">导出历史月份：</label>
                     <div class="flex gap-2 items-center">
@@ -102,22 +97,18 @@
                     </div>
                 </div>
             </div>
-
         </section>
     </div>
 
-    <!-- 分类流水明细 -->
     <div class="mt-6 bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
             <h2 class="text-lg font-bold">📝 账单明细</h2>
-            
             <div class="flex bg-gray-100 p-1 rounded-lg">
                 <button onclick="setListView('today')" id="tab-today" class="px-4 py-1 text-sm font-bold rounded-md bg-white shadow-sm text-indigo-600 transition-all">今日</button>
                 <button onclick="setListView('month')" id="tab-month" class="px-4 py-1 text-sm font-bold rounded-md text-gray-500 hover:bg-gray-200 transition-all">本月</button>
                 <button onclick="setListView('all')" id="tab-all" class="px-4 py-1 text-sm font-bold rounded-md text-gray-500 hover:bg-gray-200 transition-all">全部</button>
             </div>
         </div>
-
         <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead>
@@ -130,22 +121,25 @@
                     </tr>
                 </thead>
                 <tbody id="history-list" class="divide-y divide-gray-100">
-                    <!-- 数据在此渲染 -->
+                    <tr><td colspan="5" class="py-6 text-center text-gray-400">正在从云端拉取账单...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
     <script>
+        const SUPABASE_URL = "https://tarphzrscdmmznosxuzc.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_IOOU_7JHMUXwlX7hqzoCBQ_Om5zUHMq";
+        
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
         let currentMode = 'expense';
         let currentListView = 'today';
-        let records = JSON.parse(localStorage.getItem('jom_ledger')) || [];
+        let records = [];
 
         function updateClock() {
             const now = new Date();
-            const dateStr = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
-            const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-            document.getElementById('real-time').innerText = `当前时间：${dateStr} ${timeStr}`;
+            document.getElementById('real-time').innerText = `当前时间：${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
         }
         setInterval(updateClock, 1000);
         updateClock();
@@ -154,7 +148,6 @@
             currentMode = mode;
             const btnExp = document.getElementById('btn-expense');
             const btnInc = document.getElementById('btn-income');
-            
             if(mode === 'expense') {
                 btnExp.className = "flex-1 py-2 text-sm font-bold rounded-md bg-white shadow-sm text-red-500";
                 btnInc.className = "flex-1 py-2 text-sm font-bold rounded-md text-gray-500 bg-transparent";
@@ -164,10 +157,29 @@
             }
         }
 
-        function addRecord(amountParam = null, descParam = null) {
+        async function loadRecordsFromCloud() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('records')
+                    .select('*')
+                    .order('timestamp', { ascending: false });
+
+                if (error) throw error;
+                records = data || [];
+                
+                document.getElementById('sync-status').innerText = "☁️ 云端同步成功";
+                document.getElementById('sync-status').className = "text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded";
+                renderUI();
+            } catch (err) {
+                console.error("加载云端数据失败:", err);
+                document.getElementById('sync-status').innerText = "❌ 连不上云端数据库";
+                document.getElementById('sync-status').className = "text-xs bg-red-100 text-red-700 px-2 py-1 rounded";
+            }
+        }
+
+        async function addRecord(amountParam = null, descParam = null) {
             const amountInput = document.getElementById('input-amount').value;
             const descInput = document.getElementById('input-desc').value;
-            
             const amount = parseFloat(amountParam || amountInput);
             const desc = descParam || descInput || '无备注';
 
@@ -176,8 +188,11 @@
                 return;
             }
 
+            const btnSubmit = document.getElementById('btn-submit');
+            btnSubmit.disabled = true;
+
             const now = new Date();
-            const record = {
+            const newRecord = {
                 id: Date.now(),
                 timestamp: now.getTime(),
                 dateStr: `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`,
@@ -188,17 +203,35 @@
                 desc: desc
             };
 
-            records.push(record);
-            saveAndRender();
-            
-            document.getElementById('input-amount').value = '';
-            document.getElementById('input-desc').value = '';
+            try {
+                const { error } = await supabaseClient.from('records').insert([newRecord]);
+                if (error) throw error;
+                
+                records.unshift(newRecord);
+                renderUI();
+                
+                document.getElementById('input-amount').value = '';
+                document.getElementById('input-desc').value = '';
+            } catch (err) {
+                alert("保存到云端失败，请检查网络！");
+                console.error(err);
+            } finally {
+                btnSubmit.disabled = false;
+            }
         }
 
-        function deleteRecord(id) {
-            if(confirm("确定要删除这条记录吗？删除后看板数据会自动更新。")) {
-                records = records.filter(r => r.id !== id);
-                saveAndRender();
+        async function deleteRecord(id) {
+            if(confirm("确定要从云端删除这条记录吗？")) {
+                try {
+                    const { error } = await supabaseClient.from('records').delete().eq('id', id);
+                    if (error) throw error;
+                    
+                    records = records.filter(r => r.id !== id);
+                    renderUI();
+                } catch (err) {
+                    alert("从云端删除失败！");
+                    console.error(err);
+                }
             }
         }
 
@@ -211,12 +244,10 @@
             document.getElementById('tab-month').className = view === 'month' ? activeClass : inactiveClass;
             document.getElementById('tab-all').className = view === 'all' ? activeClass : inactiveClass;
             
-            saveAndRender();
+            renderUI();
         }
 
-        function saveAndRender() {
-            localStorage.setItem('jom_ledger', JSON.stringify(records));
-            
+        function renderUI() {
             const now = new Date();
             const todayStr = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
             const thisMonthStr = `${now.getMonth() + 1}/${now.getFullYear()}`;
@@ -241,20 +272,19 @@
             document.getElementById('month-income').innerText = `RM ${mInc.toFixed(2)}`;
             document.getElementById('month-expense').innerText = `RM ${mExp.toFixed(2)}`;
 
-            let sortedRecords = [...records].sort((a, b) => b.timestamp - a.timestamp);
-            
+            let displayRecords = [...records];
             if (currentListView === 'today') {
-                sortedRecords = sortedRecords.filter(r => r.dateStr === todayStr);
+                displayRecords = displayRecords.filter(r => r.dateStr === todayStr);
             } else if (currentListView === 'month') {
-                sortedRecords = sortedRecords.filter(r => r.monthStr === thisMonthStr);
+                displayRecords = displayRecords.filter(r => r.monthStr === thisMonthStr);
             }
 
-            if(sortedRecords.length === 0) {
+            if(displayRecords.length === 0) {
                 listObj.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-gray-400">该分类下暂无账单明细</td></tr>`;
                 return;
             }
 
-            sortedRecords.forEach(r => {
+            displayRecords.forEach(r => {
                 const color = r.mode === 'income' ? 'text-emerald-600' : 'text-red-500';
                 const sign = r.mode === 'income' ? '+' : '-';
                 const typeText = r.mode === 'income' ? '收入' : '支出';
@@ -264,7 +294,7 @@
                         <td class="py-3">${r.dateStr} <span class="text-gray-400 text-xs">${r.timeStr}</span></td>
                         <td class="py-3"><span class="px-2 py-1 rounded text-xs ${r.mode === 'income' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}">${typeText}</span></td>
                         <td class="py-3">${r.desc}</td>
-                        <td class="py-3 text-right font-bold ${color}">${sign} ${r.amount.toFixed(2)}</td>
+                        <td class="py-3 text-right font-bold ${color}">${sign} RM ${r.amount.toFixed(2)}</td>
                         <td class="py-3 text-center">
                             <button onclick="deleteRecord(${r.id})" class="text-xs text-red-400 hover:text-red-600 bg-red-50 px-2 py-1 rounded border border-red-100 transition-all">删除</button>
                         </td>
@@ -293,64 +323,35 @@
             } else if (period === 'custom') {
                 const pickerVal = document.getElementById('export-month-picker').value;
                 if(!pickerVal) {
-                    alert("请先在旁边选择一个月份！");
+                    alert("请先选择一个月份！");
                     return;
                 }
                 const parts = pickerVal.split('-');
-                const year = parts[0];
-                const month = parseInt(parts[1], 10);
-                filterStr = `${month}/${year}`;
+                filterStr = `${parseInt(parts[1], 10)}/${parts[0]}`;
                 periodText = `历史月份 (${filterStr})`;
                 targetRecords = records.filter(r => r.monthStr === filterStr);
             }
 
             if(targetRecords.length === 0) {
-                alert(`没有找到 [${periodText}] 的数据，可能那个时候没记账哦！`);
+                alert(`没有找到 [${periodText}] 的数据！`);
                 return;
             }
 
-            let totalInc = 0;
-            let totalExp = 0;
-            let details = "";
-
+            let totalInc = 0, totalExp = 0, details = "";
             const sortedRecords = [...targetRecords].sort((a, b) => a.timestamp - b.timestamp);
 
             sortedRecords.forEach(r => {
                 if (r.mode === 'income') {
                     totalInc += r.amount;
-                    details += `🟢 ${r.dateStr} ${r.timeStr} | 收入 | RM ${r.amount.toFixed(2)} (${r.desc})
-`;
+                    details += `🟢 ${r.dateStr} ${r.timeStr} | 收入 | RM ${r.amount.toFixed(2)} (${r.desc})\n`;
                 } else {
                     totalExp += r.amount;
-                    details += `🔴 ${r.dateStr} ${r.timeStr} | 支出 | RM ${r.amount.toFixed(2)} (${r.desc})
-`;
+                    details += `🔴 ${r.dateStr} ${r.timeStr} | 支出 | RM ${r.amount.toFixed(2)} (${r.desc})\n`;
                 }
             });
 
-            let pureProfit = totalInc - totalExp;
-
-            let msg = `📊 *Jom Waffu 财务报表*
-`;
-            msg += `⏳ 周期：${periodText}
-`;
-            msg += `-------------------
-`;
-            msg += `💰 *【收支总汇】*
-`;
-            msg += `总收入: RM ${totalInc.toFixed(2)}
-`;
-            msg += `总支出: RM ${totalExp.toFixed(2)}
-`;
-            msg += `*账面净利润: RM ${pureProfit.toFixed(2)}*
-`;
-            msg += `-------------------
-`;
-            msg += `📝 *【流水明细】*
-`;
-            msg += details;
-
-            const waLink = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-            window.open(waLink, '_blank');
+            let msg = `📊 *Jom Waffu 财务报表*\n⏳ 周期：${periodText}\n-------------------\n💰 *【收支总汇】*\n总收入: RM ${totalInc.toFixed(2)}\n总支出: RM ${totalExp.toFixed(2)}\n*账面净利润: RM ${(totalInc - totalExp).toFixed(2)}*\n-------------------\n📝 *【流水明细】*\n${details}`;
+            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
         }
 
         function simulateScan(input) {
@@ -359,19 +360,27 @@
                 setTimeout(() => {
                     setMode('expense');
                     addRecord(55.00, "拍照录入: 购买面粉物料");
-                    alert("✅ 扫描成功并自动记账！支出 RM 55.00");
+                    alert("✅ 扫描成功并自动上传云端！支出 RM 55.00");
                 }, 1000);
             }
         }
 
-        function clearData() {
-            if(confirm("⚠️ 危险操作：确定要清空所有记账数据吗？清空后无法恢复！")) {
-                records = [];
-                saveAndRender();
+        async function clearData() {
+            if(confirm("⚠️ 极度危险：确定要清空云端数据库所有数据吗？")) {
+                try {
+                    const { error } = await supabaseClient.from('records').delete().neq('id', 0);
+                    if (error) throw error;
+                    records = [];
+                    renderUI();
+                    alert("云端已彻底清空！");
+                } catch (err) {
+                    alert("清空失败！");
+                    console.error(err);
+                }
             }
         }
 
-        saveAndRender();
+        loadRecordsFromCloud();
     </script>
 </body>
 </html>
