@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jom Waffu 极简记账本</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans p-4 md:p-8 max-w-4xl mx-auto">
+
+    <!-- 顶部：实时时间与标题 -->
+    <header class="flex justify-between items-end mb-6 border-b border-gray-300 pb-4">
+        <div>
+            <h1 class="text-2xl font-black text-indigo-600">Jom Waffu 账本系统</h1>
+            <p id="real-time" class="text-sm text-gray-500 font-medium mt-1">加载时间中...</p>
+        </div>
+        <button onclick="clearData()" class="text-xs text-red-400 hover:text-red-600 underline">清空全部数据</button>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- 左侧：记账输入区 -->
+        <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+            <h2 class="text-lg font-bold mb-4">✍️ 记一笔</h2>
+            
+            <label class="block w-full bg-indigo-50 border-2 border-dashed border-indigo-300 hover:border-indigo-500 text-center p-4 rounded-xl cursor-pointer mb-6 transition-all">
+                <span class="text-2xl block mb-1">📸</span>
+                <span class="text-sm font-bold text-indigo-600">拍照/扫描收据自动提取</span>
+                <input type="file" class="hidden" accept="image/*" onchange="simulateScan(this)">
+            </label>
+
+            <div class="space-y-4">
+                <div class="flex bg-gray-100 p-1 rounded-lg">
+                    <button id="btn-expense" onclick="setMode('expense')" class="flex-1 py-2 text-sm font-bold rounded-md bg-white shadow-sm text-red-500">支出 (-)</button>
+                    <button id="btn-income" onclick="setMode('income')" class="flex-1 py-2 text-sm font-bold rounded-md text-gray-500 bg-transparent">收入 (+)</button>
+                </div>
+
+                <div>
+                    <label class="text-xs text-gray-500">金额 (RM)</label>
+                    <input type="number" id="input-amount" class="w-full text-xl font-bold p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="0.00">
+                </div>
+                
+                <div>
+                    <label class="text-xs text-gray-500">备注</label>
+                    <input type="text" id="input-desc" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="例如：买面粉 / 卖出 Waffle">
+                </div>
+
+                <button onclick="addRecord()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl active:scale-95 transition-all shadow-md mt-2">
+                    确认记录
+                </button>
+            </div>
+        </section>
+
+        <!-- 右侧：数据看板与导出 -->
+        <section class="space-y-6">
+            
+            <!-- 数据看板 -->
+            <div class="bg-gray-800 text-white p-6 rounded-2xl shadow-lg">
+                <h2 class="text-sm text-gray-400 font-medium mb-4">📊 财务看板</h2>
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="bg-gray-700 p-3 rounded-lg border-l-4 border-emerald-400">
+                        <span class="text-xs text-gray-300 block mb-1">今日收入</span>
+                        <span id="today-income" class="text-xl font-bold text-emerald-400">RM 0.00</span>
+                    </div>
+                    <div class="bg-gray-700 p-3 rounded-lg border-l-4 border-red-400">
+                        <span class="text-xs text-gray-300 block mb-1">今日支出</span>
+                        <span id="today-expense" class="text-xl font-bold text-red-400">RM 0.00</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4 border-t border-gray-600 pt-4">
+                    <div>
+                        <span class="text-xs text-gray-400 block mb-1">本月总收入</span>
+                        <span id="month-income" class="text-lg font-bold text-emerald-300">RM 0.00</span>
+                    </div>
+                    <div>
+                        <span class="text-xs text-gray-400 block mb-1">本月总支出</span>
+                        <span id="month-expense" class="text-lg font-bold text-red-300">RM 0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WhatsApp 导出功能 -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                <h2 class="text-sm font-bold text-gray-700 mb-3">🟢 WhatsApp 发送报表</h2>
+                
+                <div class="flex gap-3 mb-4">
+                    <button onclick="exportToWhatsApp('today')" class="flex-1 bg-green-50 hover:bg-green-100 text-green-700 font-bold py-2 rounded-lg text-sm border border-green-200 transition-all">
+                        发送今日
+                    </button>
+                    <button onclick="exportToWhatsApp('month')" class="flex-1 bg-green-50 hover:bg-green-100 text-green-700 font-bold py-2 rounded-lg text-sm border border-green-200 transition-all">
+                        发送本月
+                    </button>
+                </div>
+
+                <div class="border-t border-gray-100 pt-4">
+                    <label class="text-xs text-gray-500 block mb-2">导出历史月份：</label>
+                    <div class="flex gap-2 items-center">
+                        <input type="month" id="export-month-picker" class="flex-1 border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                        <button onclick="exportToWhatsApp('custom')" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-4 rounded-lg text-sm transition-all shadow-md">
+                            导出选定月
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </div>
+
+    <!-- 分类流水明细 -->
+    <div class="mt-6 bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+            <h2 class="text-lg font-bold">📝 账单明细</h2>
+            
+            <div class="flex bg-gray-100 p-1 rounded-lg">
+                <button onclick="setListView('today')" id="tab-today" class="px-4 py-1 text-sm font-bold rounded-md bg-white shadow-sm text-indigo-600 transition-all">今日</button>
+                <button onclick="setListView('month')" id="tab-month" class="px-4 py-1 text-sm font-bold rounded-md text-gray-500 hover:bg-gray-200 transition-all">本月</button>
+                <button onclick="setListView('all')" id="tab-all" class="px-4 py-1 text-sm font-bold rounded-md text-gray-500 hover:bg-gray-200 transition-all">全部</button>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr class="border-b border-gray-200 text-gray-500">
+                        <th class="pb-2">日期与时间</th>
+                        <th class="pb-2">类型</th>
+                        <th class="pb-2">备注</th>
+                        <th class="pb-2 text-right">金额 (RM)</th>
+                        <th class="pb-2 text-center w-16">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="history-list" class="divide-y divide-gray-100">
+                    <!-- 数据在此渲染 -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let currentMode = 'expense';
+        let currentListView = 'today';
+        let records = JSON.parse(localStorage.getItem('jom_ledger')) || [];
+
+        function updateClock() {
+            const now = new Date();
+            const dateStr = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
+            const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+            document.getElementById('real-time').innerText = `当前时间：${dateStr} ${timeStr}`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        function setMode(mode) {
+            currentMode = mode;
+            const btnExp = document.getElementById('btn-expense');
+            const btnInc = document.getElementById('btn-income');
+            
+            if(mode === 'expense') {
+                btnExp.className = "flex-1 py-2 text-sm font-bold rounded-md bg-white shadow-sm text-red-500";
+                btnInc.className = "flex-1 py-2 text-sm font-bold rounded-md text-gray-500 bg-transparent";
+            } else {
+                btnInc.className = "flex-1 py-2 text-sm font-bold rounded-md bg-white shadow-sm text-emerald-500";
+                btnExp.className = "flex-1 py-2 text-sm font-bold rounded-md text-gray-500 bg-transparent";
+            }
+        }
+
+        function addRecord(amountParam = null, descParam = null) {
+            const amountInput = document.getElementById('input-amount').value;
+            const descInput = document.getElementById('input-desc').value;
+            
+            const amount = parseFloat(amountParam || amountInput);
+            const desc = descParam || descInput || '无备注';
+
+            if (!amount || amount <= 0) {
+                alert("请输入正确的金额！");
+                return;
+            }
+
+            const now = new Date();
+            const record = {
+                id: Date.now(),
+                timestamp: now.getTime(),
+                dateStr: `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`,
+                monthStr: `${now.getMonth() + 1}/${now.getFullYear()}`,
+                timeStr: `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`,
+                mode: currentMode,
+                amount: amount,
+                desc: desc
+            };
+
+            records.push(record);
+            saveAndRender();
+            
+            document.getElementById('input-amount').value = '';
+            document.getElementById('input-desc').value = '';
+        }
+
+        function deleteRecord(id) {
+            if(confirm("确定要删除这条记录吗？删除后看板数据会自动更新。")) {
+                records = records.filter(r => r.id !== id);
+                saveAndRender();
+            }
+        }
+
+        function setListView(view) {
+            currentListView = view;
+            const activeClass = "px-4 py-1 text-sm font-bold rounded-md bg-white shadow-sm text-indigo-600 transition-all";
+            const inactiveClass = "px-4 py-1 text-sm font-bold rounded-md text-gray-500 hover:bg-gray-200 transition-all";
+            
+            document.getElementById('tab-today').className = view === 'today' ? activeClass : inactiveClass;
+            document.getElementById('tab-month').className = view === 'month' ? activeClass : inactiveClass;
+            document.getElementById('tab-all').className = view === 'all' ? activeClass : inactiveClass;
+            
+            saveAndRender();
+        }
+
+        function saveAndRender() {
+            localStorage.setItem('jom_ledger', JSON.stringify(records));
+            
+            const now = new Date();
+            const todayStr = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
+            const thisMonthStr = `${now.getMonth() + 1}/${now.getFullYear()}`;
+
+            let tInc = 0, tExp = 0, mInc = 0, mExp = 0;
+            const listObj = document.getElementById('history-list');
+            listObj.innerHTML = '';
+
+            records.forEach(r => {
+                if (r.dateStr === todayStr) {
+                    if (r.mode === 'income') tInc += r.amount;
+                    else tExp += r.amount;
+                }
+                if (r.monthStr === thisMonthStr) {
+                    if (r.mode === 'income') mInc += r.amount;
+                    else mExp += r.amount;
+                }
+            });
+
+            document.getElementById('today-income').innerText = `RM ${tInc.toFixed(2)}`;
+            document.getElementById('today-expense').innerText = `RM ${tExp.toFixed(2)}`;
+            document.getElementById('month-income').innerText = `RM ${mInc.toFixed(2)}`;
+            document.getElementById('month-expense').innerText = `RM ${mExp.toFixed(2)}`;
+
+            let sortedRecords = [...records].sort((a, b) => b.timestamp - a.timestamp);
+            
+            if (currentListView === 'today') {
+                sortedRecords = sortedRecords.filter(r => r.dateStr === todayStr);
+            } else if (currentListView === 'month') {
+                sortedRecords = sortedRecords.filter(r => r.monthStr === thisMonthStr);
+            }
+
+            if(sortedRecords.length === 0) {
+                listObj.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-gray-400">该分类下暂无账单明细</td></tr>`;
+                return;
+            }
+
+            sortedRecords.forEach(r => {
+                const color = r.mode === 'income' ? 'text-emerald-600' : 'text-red-500';
+                const sign = r.mode === 'income' ? '+' : '-';
+                const typeText = r.mode === 'income' ? '收入' : '支出';
+
+                listObj.innerHTML += `
+                    <tr class="text-gray-700 hover:bg-gray-50 transition-colors">
+                        <td class="py-3">${r.dateStr} <span class="text-gray-400 text-xs">${r.timeStr}</span></td>
+                        <td class="py-3"><span class="px-2 py-1 rounded text-xs ${r.mode === 'income' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}">${typeText}</span></td>
+                        <td class="py-3">${r.desc}</td>
+                        <td class="py-3 text-right font-bold ${color}">${sign} ${r.amount.toFixed(2)}</td>
+                        <td class="py-3 text-center">
+                            <button onclick="deleteRecord(${r.id})" class="text-xs text-red-400 hover:text-red-600 bg-red-50 px-2 py-1 rounded border border-red-100 transition-all">删除</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function exportToWhatsApp(period) {
+            const now = new Date();
+            const todayStr = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
+            const monthStr = `${now.getMonth() + 1}/${now.getFullYear()}`;
+            
+            let filterStr = '';
+            let periodText = '';
+            let targetRecords = [];
+
+            if (period === 'today') {
+                filterStr = todayStr;
+                periodText = '今日';
+                targetRecords = records.filter(r => r.dateStr === filterStr);
+            } else if (period === 'month') {
+                filterStr = monthStr;
+                periodText = '本月';
+                targetRecords = records.filter(r => r.monthStr === filterStr);
+            } else if (period === 'custom') {
+                const pickerVal = document.getElementById('export-month-picker').value;
+                if(!pickerVal) {
+                    alert("请先在旁边选择一个月份！");
+                    return;
+                }
+                const parts = pickerVal.split('-');
+                const year = parts[0];
+                const month = parseInt(parts[1], 10);
+                filterStr = `${month}/${year}`;
+                periodText = `历史月份 (${filterStr})`;
+                targetRecords = records.filter(r => r.monthStr === filterStr);
+            }
+
+            if(targetRecords.length === 0) {
+                alert(`没有找到 [${periodText}] 的数据，可能那个时候没记账哦！`);
+                return;
+            }
+
+            let totalInc = 0;
+            let totalExp = 0;
+            let details = "";
+
+            const sortedRecords = [...targetRecords].sort((a, b) => a.timestamp - b.timestamp);
+
+            sortedRecords.forEach(r => {
+                if (r.mode === 'income') {
+                    totalInc += r.amount;
+                    details += `🟢 ${r.dateStr} ${r.timeStr} | 收入 | RM ${r.amount.toFixed(2)} (${r.desc})
+`;
+                } else {
+                    totalExp += r.amount;
+                    details += `🔴 ${r.dateStr} ${r.timeStr} | 支出 | RM ${r.amount.toFixed(2)} (${r.desc})
+`;
+                }
+            });
+
+            let pureProfit = totalInc - totalExp;
+
+            let msg = `📊 *Jom Waffu 财务报表*
+`;
+            msg += `⏳ 周期：${periodText}
+`;
+            msg += `-------------------
+`;
+            msg += `💰 *【收支总汇】*
+`;
+            msg += `总收入: RM ${totalInc.toFixed(2)}
+`;
+            msg += `总支出: RM ${totalExp.toFixed(2)}
+`;
+            msg += `*账面净利润: RM ${pureProfit.toFixed(2)}*
+`;
+            msg += `-------------------
+`;
+            msg += `📝 *【流水明细】*
+`;
+            msg += details;
+
+            const waLink = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+            window.open(waLink, '_blank');
+        }
+
+        function simulateScan(input) {
+            if (input.files && input.files[0]) {
+                alert("⏳ 正在扫描凭证...");
+                setTimeout(() => {
+                    setMode('expense');
+                    addRecord(55.00, "拍照录入: 购买面粉物料");
+                    alert("✅ 扫描成功并自动记账！支出 RM 55.00");
+                }, 1000);
+            }
+        }
+
+        function clearData() {
+            if(confirm("⚠️ 危险操作：确定要清空所有记账数据吗？清空后无法恢复！")) {
+                records = [];
+                saveAndRender();
+            }
+        }
+
+        saveAndRender();
+    </script>
+</body>
+</html>

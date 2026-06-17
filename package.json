@@ -1,0 +1,12 @@
+{
+  "name": "jom-waffu-ledger",
+  "version": "1.0.0",
+  "description": "Jom Waffu Bookkeeping MVP App",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
