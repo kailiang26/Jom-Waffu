@@ -380,7 +380,17 @@
             }
         }
 
+        // 修复版：确保 Supabase 加载后再执行
+function initApp() {
+    if (typeof supabase !== 'undefined') {
         loadRecordsFromCloud();
+    } else {
+        console.log("等待 SDK 加载...");
+        setTimeout(initApp, 500); // 如果还没加载，每 0.5 秒重试一次
+    }
+}
+initApp();
+
     </script>
 </body>
 </html>
